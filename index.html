@@ -64,18 +64,15 @@
     <script>
         let agencies = [];
 
-        document.getElementById('fileInput').addEventListener('change', function(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    agencies = JSON.parse(e.target.result);
-                    populateAgencies(agencies);
-                    populateYears(agencies);
-                };
-                reader.readAsText(file);
-            }
-        });
+    // Load JSON automatically from the same folder as the HTML file
+    fetch('dados.json')
+        .then(response => response.json())
+        .then(data => {
+            agencies = data;
+            populateAgencies(agencies);
+            populateYears(agencies);
+        })
+        .catch(error => console.error('Error loading JSON:', error));
 
         function populateAgencies(data) {
             const agencySelect = document.getElementById('agencySelect');
