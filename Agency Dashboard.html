@@ -1,0 +1,169 @@
+ 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agency Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { display: flex; justify-content: space-between; }
+        .box { width: 48%; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9; }
+        h3 { margin-top: 0; }
+        select, input, button { margin-bottom: 10px; padding: 5px; }
+    </style>
+</head>
+<body>
+
+    <h2>Upload JSON File</h2>
+    <input type="file" id="fileInput">
+    
+    <h2>Select or Search Agency</h2>
+    <input type="text" id="searchAgency" placeholder="Type agency name...">
+    <select id="agencySelect"></select>
+
+    <div class="container">
+        <div class="box">
+            <h3>Agency Details</h3>
+            <p><strong>Name:</strong> <span id="agencyName"></span></p>
+            <p><strong>Email:</strong> <span id="agencyEmail"></span></p>
+            <p><strong>Contact:</strong> <span id="agencyContact"></span></p>
+            <p><strong>Agreement Signed:</strong> <span id="agreementSigned"></span></p>
+            <p><strong>Agreement Expired:</strong> <span id="agreementExpired"></span></p>
+        </div>
+        
+        <div class="box">
+            <h3>Document Types Availability</h3>
+            <div id="documentStatus"></div>
+        </div>
+    </div>
+
+    <h3>Filter Agreements by Year & Month</h3>
+    <label for="yearSelect">Year:</label>
+    <select id="yearSelect"></select>
+    <label for="monthSelect">Month:</label>
+    <select id="monthSelect">
+        <option value="">All</option>
+        <option value="01">January</option>
+        <option value="02">February</option>
+        <option value="03">March</option>
+        <option value="04">April</option>
+        <option value="05">May</option>
+        <option value="06">June</option>
+        <option value="07">July</option>
+        <option value="08">August</option>
+        <option value="09">September</option>
+        <option value="10">October</option>
+        <option value="11">November</option>
+        <option value="12">December</option>
+    </select>
+    <button onclick="filterExpiringAgreements()">Filter</button>
+    <div id="filteredAgencies"></div>
+
+    <script>
+        let agencies = [];
+
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    agencies = JSON.parse(e.target.result);
+                    populateAgencies(agencies);
+                    populateYears(agencies);
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        function populateAgencies(data) {
+            const agencySelect = document.getElementById('agencySelect');
+            agencySelect.innerHTML = '<option value="">Select an agency</option>';
+            
+            const searchInput = document.getElementById('searchAgency');
+            searchInput.addEventListener("input", function() {
+                const searchText = searchInput.value.toLowerCase();
+                const matchedAgency = data.find(a => a.agencyname.toLowerCase().includes(searchText));
+                if (matchedAgency) {
+                    agencySelect.value = matchedAgency.agencyID;
+                    displayAgencyDetails(matchedAgency.agencyID);
+                }
+            });
+
+            data.forEach(agency => {
+                const option = document.createElement('option');
+                option.value = agency.agencyID;
+                option.textContent = agency.agencyname;
+                agencySelect.appendChild(option);
+            });
+
+            agencySelect.addEventListener('change', function() {
+                displayAgencyDetails(this.value);
+            });
+        }
+
+        function displayAgencyDetails(agencyID) {
+            const agency = agencies.find(a => a.agencyID == agencyID);
+            if (agency) {
+                document.getElementById('agencyName').textContent = agency.agencyname || "N/A";
+                document.getElementById('agencyEmail').textContent = agency.agencyemail || "N/A";
+                document.getElementById('agencyContact').textContent = agency.phone || "N/A";
+                document.getElementById('agreementSigned').textContent = agency.agreementStartDate || "N/A";
+                document.getElementById('agreementExpired').textContent = agency.agreementExpiryDate || "N/A";
+
+                displayDocumentTypes(agency);
+            }
+        }
+
+        function displayDocumentTypes(agency) {
+            const requiredDocs = ["Agent Application", "Business Registration", "Company Profile", "ICEF", "Migration License", "Other Supporting Documents", "QEAC", "Reference Check"];
+            const docStatusDiv = document.getElementById("documentStatus");
+            docStatusDiv.innerHTML = "";
+
+            const agencyDocs = agency.documents ? agency.documents.map(doc => doc.fileType) : [];
+            const referenceCheckCount = agencyDocs.filter(doc => doc === "Reference Check").length;
+
+            requiredDocs.forEach(doc => {
+                let status = "❌";
+                if (doc === "Reference Check") {
+                    status = referenceCheckCount === 0 ? "❌" : referenceCheckCount === 1 ? "⚠️" : "✔️";
+                } else if (agencyDocs.includes(doc)) {
+                    status = "✔️";
+                }
+                const p = document.createElement("p");
+                p.innerHTML = `<strong>${doc}:</strong> ${status}`;
+                docStatusDiv.appendChild(p);
+            });
+        }
+
+        function populateYears(data) {
+            const years = [...new Set(data.map(a => a.agreementExpiryDate ? a.agreementExpiryDate.substring(0, 4) : "").filter(y => y && parseInt(y) <= 2025))].sort();
+            const yearSelect = document.getElementById("yearSelect");
+            yearSelect.innerHTML = '<option value="">Select Year</option>';
+            years.forEach(year => {
+                const option = document.createElement("option");
+                option.value = year;
+                option.textContent = year;
+                yearSelect.appendChild(option);
+            });
+        }
+
+        function filterExpiringAgreements() {
+            const selectedYear = document.getElementById("yearSelect").value;
+            const selectedMonth = document.getElementById("monthSelect").value;
+            const filteredAgencies = agencies.filter(a => 
+                a.agreementExpiryDate &&
+                a.agreementExpiryDate.startsWith(selectedYear) &&
+                (selectedMonth === "" || a.agreementExpiryDate.substring(5, 7) === selectedMonth)
+            );
+
+            const resultDiv = document.getElementById("filteredAgencies");
+            resultDiv.innerHTML = "<h4>Expiring Agreements:</h4>" + 
+                (filteredAgencies.length > 0 ? filteredAgencies.map(a => `<p>${a.agencyname}</p>`).join("") : "<p>No agreements found.</p>");
+        }
+
+    </script>
+
+</body>
+</html>
